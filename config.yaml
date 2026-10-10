@@ -1,0 +1,100 @@
+# ---------------------------------------------------------------
+# News digest config — edit freely, no code changes needed.
+#   feeds:    plain RSS/Atom URLs
+#   queries:  Google News searches (great for niche topics)
+#   focus:    tells the AI what "important" means for this section
+# ---------------------------------------------------------------
+
+timezone: America/Edmonton
+region: CA                 # Google News edition (CA, US, GB, IN...)
+lookback_hours: 13         # covers the gap between the two daily runs
+top_n: 5                   # stories per section in the email
+reel_top_n: 6              # stories per channel in the swipe site
+max_candidates: 40         # stories sent to the AI per section for ranking
+
+ai:                        # Google AI Studio (Gemini). Key: GEMINI_API_KEY
+  enabled: true            # without a key you still get headlines, newest first
+  model: gemini-3.5-flash-lite
+  fallback_models: [gemini-3.1-flash-lite, gemini-3.6-flash]   # tried if the first is unavailable
+  min_interval: 5          # seconds between calls, keeps you inside the free-tier rate limit
+
+categories:
+  - name: Tech
+    emoji: "💻"
+    color: "#2D5BFF"
+    ink: light
+    focus: Major product launches, big-company moves, security incidents, developer tooling and open source news.
+    feeds:
+      - https://www.theverge.com/rss/index.xml
+      - https://feeds.arstechnica.com/arstechnica/index
+      - https://techcrunch.com/feed/
+      - https://hnrss.org/frontpage?points=200
+
+  - name: AI & Cloud
+    emoji: "🤖"
+    color: "#7B3FF2"
+    ink: light
+    focus: New AI models and research, AWS/Azure/GCP launches and outages, AI regulation, developer-relevant cloud changes.
+    feeds:
+      - https://aws.amazon.com/blogs/aws/feed/
+      - https://cloudblog.withgoogle.com/rss/
+    queries:
+      - "artificial intelligence model release"
+      - "AWS OR Azure OR \"Google Cloud\" announces"
+
+  - name: Tech Job Market
+    emoji: "💼"
+    color: "#0F7A57"
+    ink: light
+    focus: Layoffs, hiring trends, in-demand skills, Canadian tech hiring, junior developer market.
+    queries:
+      - "tech layoffs OR tech hiring"
+      - "software developer jobs Canada"
+      - "Calgary tech jobs"
+
+  - name: Canada & Alberta
+    emoji: "🍁"
+    color: "#D42A24"
+    ink: light
+    focus: Alberta and Calgary news, federal policy, Canadian tech and startup news.
+    feeds:
+      - https://betakit.com/feed/
+    queries:
+      - "Calgary"
+      - "Alberta government"
+      - "Canada federal government"
+
+  - name: Business & Markets
+    emoji: "📈"
+    color: "#FFC21A"
+    ink: dark
+    focus: Market-moving news, interest rates (Bank of Canada, Fed), earnings of major tech companies, oil and energy.
+    feeds:
+      - https://www.cnbc.com/id/100003114/device/rss/rss.html
+    queries:
+      - "Bank of Canada interest rate"
+      - "stock market today"
+
+  - name: Games
+    emoji: "🎮"
+    color: "#D6246E"
+    ink: light
+    focus: Major game releases and reveals, studio acquisitions and layoffs, console/platform news, big industry deals.
+    feeds:
+      - https://www.gamesindustry.biz/feed
+      - https://www.polygon.com/rss/index.xml
+    queries:
+      - "video game industry"
+
+  - name: Movies
+    emoji: "🎬"
+    color: "#FF6A1A"
+    ink: dark
+    focus: Marvel, DC and other big franchise news — casting, trailers, release dates, box office, studio decisions.
+    feeds:
+      - https://deadline.com/feed/
+      - https://variety.com/feed/
+    queries:
+      - "Marvel Studios"
+      - "DC Studios"
+      - "box office weekend"

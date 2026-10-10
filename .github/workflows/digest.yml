@@ -1,0 +1,49 @@
+name: Update news reel
+
+on:
+  schedule:
+    # GitHub cron is UTC. Calgary is UTC-6 (summer) / UTC-7 (winter).
+    - cron: "0 13 * * *"   # 7:00 AM summer, 6:00 AM winter
+    - cron: "0 0 * * *"    # 6:00 PM summer, 5:00 PM winter
+  push:
+    branches: [main]       # first deploy happens when you push
+  workflow_dispatch:       # "Run workflow" button
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Fetch news and write docs/data.js
+        run: python news_bot.py --reel
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

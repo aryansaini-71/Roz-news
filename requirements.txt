@@ -1,0 +1,4 @@
+feedparser>=6.0
+PyYAML>=6.0
+tzdata>=2024.1
+googlenewsdecoder>=0.1.7   # optional: finds the real article link/picture behind Google News links

@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101018">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="RozNews">
+<meta name="description" content="Swipe through today's tech, AI, games, movies and Canada news, one summary at a time.">
+<title>RozNews</title>
+<style>
+@font-face{font-family:"Bricolage";src:url(fonts/bricolage.woff2) format("woff2");font-weight:200 800;font-stretch:75% 100%;font-display:swap}
+@font-face{font-family:"Newsreader";src:url(fonts/newsreader.woff2) format("woff2");font-weight:200 800;font-display:swap}
+
+:root{
+  --chrome:#101018;
+  --chrome-2:#1B1B27;
+  --ink:#F3F1FA;
+  --muted:#A19FB6;
+  --line:rgba(255,255,255,.14);
+  --head:"Bricolage","Arial Narrow",system-ui,sans-serif;
+  --read:"Newsreader",Georgia,"Times New Roman",serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--chrome);color:var(--ink);font-family:var(--head);-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+
+.app{height:100dvh;max-width:460px;margin:0 auto;display:flex;flex-direction:column;background:var(--chrome);position:relative;overflow:hidden}
+@media (min-width:600px){
+  body{display:grid;place-items:center;min-height:100dvh;background:#0A0A10}
+  .app{height:min(90dvh,860px);width:440px;border-radius:30px;box-shadow:0 0 0 1px rgba(255,255,255,.1),0 40px 120px rgba(0,0,0,.6)}
+}
+
+/* ---------- HUD ---------- */
+.hud{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 14px 6px}
+.pill{display:flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:18px;border:1.5px solid var(--line);background:transparent;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.streak .flame{font-size:17px;filter:grayscale(1);opacity:.55;transition:filter .3s,opacity .3s}
+.streak.lit{border-color:#FF9A3C}
+.streak.lit .flame{filter:none;opacity:1}
+.saved-btn svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.level{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.level b{font-size:15px;white-space:nowrap}
+.xpbar{flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;min-width:30px}
+.xpbar i{display:block;height:100%;width:0;background:var(--accent,#7B8CFF);border-radius:5px;transition:width .5s var(--ease)}
+.xpbar.pulse{animation:glow .7s ease-out}
+@keyframes glow{0%{box-shadow:0 0 0 0 var(--accent,#7B8CFF)}100%{box-shadow:0 0 0 9px transparent}}
+.level span{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding:6px 14px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;height:34px;padding:0 14px;border-radius:17px;border:1.5px solid var(--line);background:transparent;font-weight:600;font-size:14px;white-space:nowrap;transition:background .2s,color .2s}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--chrome)}
+.chip.filters{border-style:dashed}
+
+.progress{height:3px;background:rgba(255,255,255,.08)}
+.progress i{display:block;height:100%;width:0;background:var(--accent,#7B8CFF);transition:width .3s var(--ease),background .3s}
+
+/* ---------- reel ---------- */
+.stage{position:relative;flex:1;min-height:0}
+main{position:absolute;inset:0;overflow-y:auto;scroll-snap-type:y mandatory;overscroll-behavior:contain;scrollbar-width:none}
+main::-webkit-scrollbar{display:none}
+main:focus-visible{outline:none}
+
+.card{position:relative;height:100%;scroll-snap-align:start;scroll-snap-stop:always;container-type:size;
+  background:var(--c);color:var(--f);display:flex;flex-direction:column;overflow:hidden;
+  touch-action:manipulation;-webkit-user-select:none;user-select:none}
+
+/* picture (or big emoji when a story has none) fills the top; it shrinks when the text needs room */
+.art{position:relative;flex:1 1 0;min-height:24%;overflow:hidden}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 30%;opacity:0;transform:scale(1.12);transition:opacity .5s}
+.art img.ok{opacity:1}
+.art.has-img::before{content:"";position:absolute;inset:0;z-index:1;background:var(--c);opacity:.16}
+.art.has-img::after{content:"";position:absolute;inset:0;z-index:2;background:linear-gradient(to bottom,transparent 35%,var(--c) 100%)}
+.mark{position:absolute;top:6%;right:-9%;font-size:54cqw;line-height:1;opacity:.17;transform:rotate(-11deg);pointer-events:none}
+.art.has-img .mark{display:none}
+
+.body{position:relative;flex:none;display:flex;flex-direction:column;gap:14px;padding:4px 22px calc(26px + env(safe-area-inset-bottom))}
+.chan{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px}
+.chan .e{font-size:22px;line-height:1}
+.chan .new{margin-left:4px;padding:1px 9px;border:1.5px solid currentColor;border-radius:99px;font-size:12px;font-weight:700}
+
+.card h2{margin:0;font-weight:800;font-stretch:80%;font-size:34px;font-size:clamp(30px,9.4cqw,46px);line-height:1.02;letter-spacing:-.015em;text-wrap:balance;overflow-wrap:break-word}
+.w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.12em;margin-bottom:-.12em}
+.w>i{display:inline-block;font-style:normal}
+.sum{margin:0;font-family:var(--read);font-size:19px;font-size:clamp(17px,4.9cqw,21px);line-height:1.45;opacity:.92;text-wrap:pretty}
+.meta{margin:0;font-weight:500;font-size:14px;opacity:.78}
+
+.acts{display:flex;gap:10px;margin-top:4px}
+.open{flex:1;height:54px;border-radius:27px;background:var(--f);color:var(--c);display:grid;place-items:center;font-weight:700;font-size:17px;text-decoration:none}
+.ic-btn{flex:none;width:54px;height:54px;border-radius:50%;border:2px solid var(--f);background:transparent;color:var(--f);display:grid;place-items:center;padding:0;transition:background .2s,color .2s}
+.ic-btn svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ic-btn .dots{stroke-width:3.4}
+.ic-btn.on{background:var(--f);color:var(--c)}
+.ic-btn.on svg{fill:currentColor}
+.ic-btn.on.pop{animation:heartpop .45s var(--ease)}
+@keyframes heartpop{0%{transform:scale(.8)}50%{transform:scale(1.22)}100%{transform:scale(1)}}
+.open:active,.ic-btn:active,.chip:active,.pill:active{transform:scale(.95)}
+
+/* entrance: one orchestrated moment per card, replayed when you scroll back to it */
+@media (prefers-reduced-motion:no-preference){
+  .w>i{transform:translateY(110%)}
+  .fx{opacity:0;transform:translateY(16px)}
+  .card.in .w>i{animation:rise .75s var(--ease) both;animation-delay:calc(var(--n) * 60ms + 120ms)}
+  .card.in .fx{animation:fadeup .6s var(--ease) both;animation-delay:var(--d,0ms)}
+  .card.in .art img.ok{animation:drift 9s cubic-bezier(.2,.6,.2,1) both}
+  .card.in .mark{animation:spinin .9s var(--ease) both}
+  .card.in .chan .e{animation:wiggle .7s ease-out .15s both}
+  .card.leaving{animation:leave .38s ease-in forwards;pointer-events:none}
+}
+@keyframes rise{from{transform:translateY(110%)}to{transform:none}}
+@keyframes fadeup{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes drift{from{transform:scale(1.12)}to{transform:scale(1)}}
+@keyframes spinin{from{opacity:0;transform:rotate(-34deg) scale(.55)}to{opacity:.17;transform:rotate(-11deg) scale(1)}}
+@keyframes wiggle{0%{transform:rotate(0)}30%{transform:rotate(-14deg) scale(1.15)}60%{transform:rotate(9deg)}100%{transform:rotate(0)}}
+@keyframes leave{to{transform:translateX(-115%) rotate(-7deg);opacity:0}}
+
+.burst{position:absolute;left:50%;top:36%;width:34cqw;height:34cqw;margin:-17cqw 0 0 -17cqw;pointer-events:none;color:var(--f);z-index:3;animation:pop .7s ease-out forwards}
+.burst svg{width:100%;height:100%;fill:currentColor;stroke:none}
+@keyframes pop{0%{transform:scale(.3);opacity:0}30%{transform:scale(1.12);opacity:1}100%{transform:scale(1) translateY(-26px);opacity:0}}
+
+/* end + empty cards */
+.card.plain{--c:var(--chrome-2);--f:#F3F1FA}
+.card.plain .mark{opacity:.1}
+.big{margin:0;font-weight:800;font-stretch:80%;font-size:clamp(34px,11cqw,52px);line-height:1;letter-spacing:-.02em}
+.note{margin:0;font-family:var(--read);font-size:19px;line-height:1.45;opacity:.85;text-wrap:pretty}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{border:1.5px solid var(--line);border-radius:18px;padding:14px 12px}
+.stat b{display:block;font-size:30px;font-weight:800;font-stretch:80%;font-variant-numeric:tabular-nums;line-height:1}
+.stat span{display:block;margin-top:6px;font-size:13px;opacity:.75}
+.ghost{height:54px;border-radius:27px;border:2px solid var(--f);background:transparent;color:var(--f);font-weight:700;font-size:17px}
+
+/* toast */
+.toast{position:absolute;left:50%;top:14px;z-index:5;transform:translate(-50%,-10px);opacity:0;pointer-events:none;display:flex;align-items:center;gap:14px;padding:9px 18px;border-radius:99px;background:rgba(16,16,24,.95);color:#fff;font-weight:700;font-size:15px;box-shadow:0 6px 24px rgba(0,0,0,.35);transition:opacity .2s,transform .25s var(--ease);white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.act{pointer-events:auto;padding-right:10px}
+.toast button{border:0;background:#fff;color:#101018;font-weight:800;font-size:14px;padding:5px 12px;border-radius:99px}
+
+/* bottom sheet */
+.sheet-wrap{position:absolute;left:0;top:0;width:100%;height:100%;z-index:20;display:flex;align-items:flex-end;visibility:hidden;transition:visibility 0s .3s}
+.sheet-wrap.open{visibility:visible;transition-delay:0s}
+.scrim{position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.55);opacity:0;transition:opacity .25s}
+.sheet{position:relative;width:100%;max-height:82%;overflow:auto;background:var(--chrome-2);border-radius:26px 26px 0 0;padding:8px 18px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .32s var(--ease)}
+.sheet-wrap.open .scrim{opacity:1}
+.sheet-wrap.open .sheet{transform:none}
+.grab{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:4px auto 10px}
+.sheet-head{display:flex;align-items:center;gap:10px;min-height:40px}
+.sheet h3{margin:0;font-weight:800;font-stretch:85%;font-size:24px;letter-spacing:-.01em}
+.back{border:1.5px solid var(--line);background:transparent;border-radius:99px;height:34px;padding:0 14px;font-weight:600;font-size:14px}
+.row{display:block;width:100%;text-align:left;border:0;background:transparent;padding:14px 4px;border-top:1px solid var(--line);font-weight:700;font-size:17px;line-height:1.25}
+.row:first-child{border-top:0}
+.row .sub{display:block;margin-top:3px;font-weight:500;font-size:14px;color:var(--muted)}
+.row.danger{color:#FF8A80}
+.rows{margin-top:6px}
+
+/* particles */
+.fx-layer{position:absolute;left:0;top:0;width:100%;height:100%;z-index:40;pointer-events:none;overflow:hidden}
+.conf{position:absolute;border-radius:2px;animation:confetti 1.25s cubic-bezier(.15,.7,.3,1) forwards}
+@keyframes confetti{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(var(--dx),calc(var(--dy) + 140px)) rotate(var(--r));opacity:0}}
+.xpfly{position:absolute;font-weight:800;font-size:17px;color:var(--accent,#7B8CFF);text-shadow:0 2px 10px rgba(0,0,0,.5);animation:xpfly .95s var(--ease) forwards}
+@keyframes xpfly{0%{transform:translate(-50%,0) scale(.7);opacity:0}20%{opacity:1;transform:translate(-50%,-6px) scale(1.15)}100%{transform:translate(-50%,-34px) scale(1);opacity:0}}
+
+.hint{display:none}
+@media (min-width:600px) and (hover:hover){
+  .hint{display:block;position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:13px;color:#6F6D84}
+}
+@media (max-height:680px){
+  .body{gap:10px;padding-bottom:18px}
+  .card h2{font-size:clamp(26px,8cqw,38px)}
+  .sum{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <button class="pill streak" id="streak" type="button" aria-label="Daily streak"><span class="flame" aria-hidden="true">🔥</span><span id="streakN">0</span></button>
+    <div class="level" role="group" aria-label="Level and experience">
+      <b id="lvl">Lv 1</b>
+      <div class="xpbar"><i id="xpfill"></i></div>
+      <span id="xpTxt">0/100 XP</span>
+    </div>
+    <button class="pill saved-btn" id="savedBtn" type="button" aria-label="Show saved stories"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg><span id="savedN">0</span></button>
+  </header>
+  <nav class="chips" id="chips" aria-label="Channels"></nav>
+  <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+  <div class="stage">
+    <main id="reel" tabindex="0" aria-label="News reel"></main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="sheet-wrap" id="sheet">
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head"><button class="back" id="sheetBack" type="button" hidden>Back</button><h3 id="sheetTitle"></h3></div>
+      <div class="rows" id="sheetRows"></div>
+    </div>
+  </div>
+  <div class="fx-layer" id="fx" aria-hidden="true"></div>
+</div>
+<p class="hint">Arrow keys or J and K to move. S saves, O opens, X hides a story.</p>
+<noscript><p style="padding:24px">RozNews needs JavaScript to show the reel.</p></noscript>
+
+<script src="data.js"></script>
+<script>
+(() => {
+"use strict";
+const DATA = window.REEL || { categories: [], stories: [], generated_at: "" };
+const GOAL = 5;                       // new stories to read per day to keep the streak
+const TITLES = ["Rookie", "Scout", "Analyst", "Insider", "Oracle"];
+const HEART = "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z";
+const DOTS = "M5 12h.01M12 12h.01M19 12h.01";
+const NS = "http://www.w3.org/2000/svg";
+
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+const icon = (d, cls) => { const s = document.createElementNS(NS, "svg"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true"); if (cls) s.setAttribute("class", cls); const p = document.createElementNS(NS, "path"); p.setAttribute("d", d); s.append(p); return s; };
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? u : "#";
+const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+/* ---------- saved progress and taste (this browser only) ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("roznews:" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("roznews:" + k, JSON.stringify(v)); } catch {} }
+};
+let xp = store.get("xp", 0);
+let done = store.get("done", {});            // story id -> {r: read, o: opened, s: saved}
+let saved = store.get("saved", {});          // story id -> full story, so it outlives the next refresh
+let streak = store.get("streak", { count: 0, last: "" });
+let today = store.get("today", { key: "", reads: 0 });
+let prefs = Object.assign({ tags: {}, sources: {}, chans: {}, hidden: {} }, store.get("prefs", {}));
+const savePrefs = () => store.set("prefs", prefs);
+
+const dayKey = (off = 0) => { const d = new Date(); d.setDate(d.getDate() + off); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const level = (x) => 1 + Math.floor(x / 100);
+const ago = (iso) => {
+  const m = Math.max(1, Math.round((Date.now() - new Date(iso)) / 60000));
+  if (m < 60) return `${m}m ago`;
+  if (m < 1440) return `${Math.round(m / 60)}h ago`;
+  return `${Math.round(m / 1440)}d ago`;
+};
+
+const catMap = Object.fromEntries(DATA.categories.map((c) => [c.name, c]));
+const catOf = (s) => catMap[s.category] || { name: s.category, emoji: s.emoji || "📰", color: "#3B4CCA", ink: "light" };
+const readAtLoad = new Set(Object.keys(done).filter((id) => done[id].r));
+
+/* ---------- the "algorithm" ----------
+   Every story has 1-3 topic tags. Hiding with a reason teaches the feed:
+   - hide a topic     -> that tag drops to -3 and any story carrying it is filtered out
+   - hide a source    -> every story from that source is filtered out
+   - show less        -> the channel sinks in the order (never fully removed)
+   - just not for me  -> the story's tags lose a little weight (never fully removed)
+   Saving and opening stories nudge their tags up, so those float to the top. */
+const tagsOf = (s) => Array.isArray(s.tags) ? s.tags : [];
+const blocked = (s) => !!prefs.hidden[s.id] || !!prefs.sources[s.source] || tagsOf(s).some((t) => (prefs.tags[t] || 0) <= -3);
+function score(s, i) {
+  let n = -i + (prefs.chans[s.category] || 0) * 10;               // i = original round-robin position
+  tagsOf(s).forEach((t) => { n += clamp(prefs.tags[t] || 0, -2.9, 6) * 4; });
+  return n;
+}
+function learn(s, w) {
+  tagsOf(s).forEach((t) => { prefs.tags[t] = clamp((prefs.tags[t] || 0) + w, -6, 6); });
+  prefs.chans[s.category] = clamp((prefs.chans[s.category] || 0) + w * 0.1, -3, 3);
+  savePrefs();
+}
+let baseOrder = [];
+function rebuildOrder() {
+  baseOrder = DATA.stories.map((s, i) => ({ s, sc: score(s, i), r: readAtLoad.has(s.id) ? 1 : 0 }))
+    .filter((x) => !blocked(x.s))
+    .sort((a, b) => a.r - b.r || b.sc - a.sc)                     // unread first, then best score
+    .map((x) => x.s);
+}
+const mutedTopics = () => Object.keys(prefs.tags).filter((t) => prefs.tags[t] <= -3);
+const filterCount = () => mutedTopics().length + Object.keys(prefs.sources).length + Object.keys(prefs.chans).filter((c) => prefs.chans[c] < 0).length + (Object.keys(prefs.hidden).length ? 1 : 0);
+
+let filter = "all", cards = [], byId = {}, observer = null, timers = new Map(), activeCard = null, celebrated = false;
+const reel = $("#reel");
+
+/* ---------- feedback: toast, particles ---------- */
+let toastTimer = 0, toastLock = 0;
+function toast(text, strong, action) {
+  if (!strong && Date.now() < toastLock) return;
+  if (strong) toastLock = Date.now() + 2000;
+  const t = $("#toast");
+  t.replaceChildren(el("span", "", text));
+  t.classList.toggle("act", !!action);
+  if (action) {
+    const b = el("button", "", action.label); b.type = "button";
+    b.addEventListener("click", () => { t.classList.remove("show", "act"); action.fn(); });
+    t.append(b);
+  }
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show", "act"), action ? 5500 : strong ? 2200 : 1300);
+}
+function confetti(n = 30) {
+  if (reduced) return;
+  const layer = $("#fx"), cx = layer.clientWidth / 2, cy = layer.clientHeight * 0.38;
+  const colors = DATA.categories.length ? DATA.categories.map((c) => c.color) : ["#7B8CFF", "#FFC21A", "#FF6A1A"];
+  for (let k = 0; k < n; k++) {
+    const p = el("i", "conf"), a = Math.random() * Math.PI * 2, d = 90 + Math.random() * 190;
+    p.style.cssText = `left:${cx}px;top:${cy}px;width:${6 + Math.random() * 6}px;height:${8 + Math.random() * 9}px;background:${colors[k % colors.length]};--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d - 70).toFixed(0)}px;--r:${(Math.random() * 720 - 360) | 0}deg`;
+    layer.append(p); setTimeout(() => p.remove(), 1400);
+  }
+}
+function xpFly(text) {
+  const bar = $(".xpbar");
+  bar.classList.remove("pulse"); void bar.offsetWidth; bar.classList.add("pulse");
+  const a = $(".app").getBoundingClientRect(), r = bar.getBoundingClientRect();
+  const t = el("span", "xpfly", text);
+  t.style.left = `${r.left - a.left + r.width * 0.72}px`; t.style.top = `${r.top - a.top + r.height + 4}px`;
+  $("#fx").append(t); setTimeout(() => t.remove(), 1000);
+}
+
+/* ---------- XP, level, streak ---------- */
+function award(id, flag, pts) {
+  const rec = done[id] || (done[id] = {});
+  if (rec[flag]) return false;
+  rec[flag] = 1;
+  const before = level(xp);
+  xp += pts;
+  const keys = Object.keys(done);
+  if (keys.length > 3000) keys.slice(0, 1000).forEach((k) => delete done[k]);
+  store.set("xp", xp); store.set("done", done);
+  paintHud();
+  if (level(xp) > before) { toast(`Level ${level(xp)}, ${TITLES[Math.min(level(xp) - 1, TITLES.length - 1)]}`, true); confetti(); }
+  else if (reduced) toast(`+${pts} XP`); else xpFly(`+${pts}`);
+  return true;
+}
+function markRead(id) {
+  if (!award(id, "r", 10)) return;
+  if (today.key !== dayKey()) today = { key: dayKey(), reads: 0 };
+  today.reads += 1; store.set("today", today);
+  if (today.reads === GOAL && streak.last !== dayKey()) {
+    streak.count = streak.last === dayKey(-1) ? streak.count + 1 : 1;
+    streak.last = dayKey(); store.set("streak", streak);
+    toast(`${streak.count}-day streak`, true); confetti(36);
+  }
+  paintHud();
+}
+function paintHud() {
+  const lit = streak.last === dayKey(), alive = lit || streak.last === dayKey(-1);
+  $("#streakN").textContent = alive ? streak.count : 0;
+  $("#streak").classList.toggle("lit", lit);
+  $("#lvl").textContent = `Lv ${level(xp)}`;
+  $("#xpfill").style.width = `${xp % 100}%`;
+  $("#xpTxt").textContent = `${xp % 100}/100 XP`;
+  $("#savedN").textContent = Object.keys(saved).length;
+  const fc = $("#filtersChip"); if (fc) fc.textContent = filterCount() ? `Hidden ${filterCount()}` : "Hidden";
+  const set = (id, v) => { const n = $(id); if (n) n.textContent = v; };
+  set("#endRead", today.key === dayKey() ? today.reads : 0); set("#endXp", xp); set("#endSaved", Object.keys(saved).length);
+}
+$("#streak").addEventListener("click", () => {
+  const reads = today.key === dayKey() ? today.reads : 0;
+  toast(streak.last === dayKey() ? "Streak is safe for today" : `Read ${Math.max(0, GOAL - reads)} more new stories to ${streak.count && streak.last === dayKey(-1) ? "keep" : "start"} your streak`, true);
+});
+
+/* ---------- saving + sharing ---------- */
+function syncSave(id, pop) {
+  document.querySelectorAll(`[data-save="${id}"]`).forEach((b) => {
+    const on = !!saved[id];
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+    b.setAttribute("aria-label", on ? "Remove from saved" : "Save story");
+    if (pop && on) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+  });
+}
+function toggleSave(s, force) {
+  const on = force === undefined ? !saved[s.id] : force;
+  if (on === !!saved[s.id]) return;
+  if (on) { saved[s.id] = s; store.set("saved", saved); learn(s, 1.5); award(s.id, "s", 5); }
+  else { delete saved[s.id]; store.set("saved", saved); toast("Removed from saved"); }
+  syncSave(s.id, true); paintHud();
+}
+async function share(s) {
+  const url = safeUrl(s.url);
+  try {
+    if (navigator.share) { await navigator.share({ title: s.headline, url }); return; }
+    await navigator.clipboard.writeText(url); toast("Link copied", true);
+  } catch { /* user cancelled */ }
+}
+function openStory(s) { learn(s, 0.5); award(s.id, "o", 20); }
+function burst(card) {
+  const b = el("div", "burst"); b.setAttribute("aria-hidden", "true"); b.append(icon(HEART));
+  card.append(b); setTimeout(() => b.remove(), 750);
+}
+
+/* ---------- bottom sheet ---------- */
+const sheet = { wrap: $("#sheet"), title: $("#sheetTitle"), rows: $("#sheetRows"), back: $("#sheetBack"), opener: null };
+const sheetOpen = () => sheet.wrap.classList.contains("open");
+function lockBehind(on) { [".hud", "#chips", ".stage"].forEach((q) => { $(q).inert = on; }); }
+function openSheet({ title, rows, back }) {
+  sheet.title.textContent = title;
+  sheet.rows.replaceChildren(...rows.map((r) => {
+    const b = el("button", "row" + (r.danger ? " danger" : "")); b.type = "button";
+    b.append(el("span", "", r.label)); if (r.sub) b.append(el("span", "sub", r.sub));
+    b.addEventListener("click", r.onClick); return b;
+  }));
+  sheet.back.hidden = !back; sheet.back.onclick = back || null;
+  if (!sheetOpen()) { sheet.opener = document.activeElement; sheet.wrap.classList.add("open"); lockBehind(true); }
+  const first = sheet.rows.firstElementChild; if (first) first.focus({ preventScroll: true });
+}
+function closeSheet() {
+  if (!sheetOpen()) return;
+  sheet.wrap.classList.remove("open"); lockBehind(false);
+  if (sheet.opener && sheet.opener.focus) sheet.opener.focus({ preventScroll: true });
+}
+$("#scrim").addEventListener("click", closeSheet);
+
+function openMenu(s) {
+  openSheet({ title: "More", rows: [
+    { label: "Share", onClick: () => { closeSheet(); share(s); } },
+    { label: "Not interested", sub: "Tell me why and I'll show less like it", onClick: () => openWhy(s) },
+  ] });
+}
+function openWhy(s) {
+  const tags = tagsOf(s), cat = catOf(s), rows = [];
+  if (tags.length) rows.push({ label: "Not into this topic", sub: tags.join(", "), onClick: () => tags.length === 1 ? dismiss(s, "topic", tags[0]) : openTopics(s) });
+  rows.push({ label: `Don't want stories from ${s.source}`, onClick: () => dismiss(s, "source") });
+  rows.push({ label: `Show less ${cat.name}`, sub: "Moves the whole channel down", onClick: () => dismiss(s, "channel") });
+  rows.push({ label: "I've already seen this", onClick: () => dismiss(s, "seen") });
+  rows.push({ label: "Just not for me", onClick: () => dismiss(s, "meh") });
+  openSheet({ title: "Why hide this?", rows, back: () => openMenu(s) });
+}
+function openTopics(s) {
+  openSheet({ title: "Which topic?", back: () => openWhy(s),
+    rows: tagsOf(s).map((t) => ({ label: `Hide "${t}"`, sub: "Stories about it stop showing up", onClick: () => dismiss(s, "topic", t) })) });
+}
+function openFilters() {
+  const rows = [];
+  mutedTopics().forEach((t) => rows.push({ label: `Topic: ${t}`, sub: "Tap to show it again", onClick: () => { delete prefs.tags[t]; afterFilterChange(); } }));
+  Object.keys(prefs.sources).forEach((n) => rows.push({ label: `Source: ${n}`, sub: "Tap to show it again", onClick: () => { delete prefs.sources[n]; afterFilterChange(); } }));
+  Object.keys(prefs.chans).filter((c) => prefs.chans[c] < 0).forEach((c) => rows.push({ label: `Less of ${c}`, sub: "Tap to reset", onClick: () => { delete prefs.chans[c]; afterFilterChange(); } }));
+  const nh = Object.keys(prefs.hidden).length;
+  if (nh) rows.push({ label: `${nh} hidden ${nh === 1 ? "story" : "stories"}`, sub: "Tap to bring them back", onClick: () => { prefs.hidden = {}; afterFilterChange(); } });
+  if (rows.length) rows.push({ label: "Reset everything I've taught it", danger: true, onClick: () => { prefs = { tags: {}, sources: {}, chans: {}, hidden: {} }; afterFilterChange(); } });
+  else rows.push({ label: "Nothing hidden yet", sub: "Tap the three dots on a story, then Not interested.", onClick: closeSheet });
+  openSheet({ title: "What you've hidden", rows });
+}
+function afterFilterChange() { savePrefs(); rebuildOrder(); render(); openFilters(); }
+
+/* ---------- hiding a story ---------- */
+function dismiss(s, kind, tag) {
+  const snap = JSON.stringify(prefs);
+  if (kind === "topic") prefs.tags[tag] = Math.min(prefs.tags[tag] || 0, -3);
+  else if (kind === "source") prefs.sources[s.source] = 1;
+  else if (kind === "channel") prefs.chans[s.category] = clamp((prefs.chans[s.category] || 0) - 1, -3, 3);
+  else if (kind === "meh") tagsOf(s).forEach((t) => { prefs.tags[t] = clamp((prefs.tags[t] || 0) - 0.75, -2.9, 6); });
+  prefs.hidden[s.id] = 1;
+  const ids = Object.keys(prefs.hidden); if (ids.length > 2000) ids.slice(0, 500).forEach((k) => delete prefs.hidden[k]);
+  savePrefs(); closeSheet(); paintHud();
+  const msg = { topic: `Hiding "${tag}"`, source: `Hiding ${s.source}`, channel: `Less ${catOf(s).name}`, seen: "Hidden", meh: "Got it" }[kind];
+  const card = reel.querySelector(`[data-id="${s.id}"]`);
+  if (!card) return;
+  const next = card.nextElementSibling;
+  card.classList.add("leaving");
+  setTimeout(() => {
+    observer.unobserve(card); card.remove();
+    for (let n = next; n;) {                                  // drop other stories the new rule blocks, only below you so nothing jumps
+      const after = n.nextElementSibling, st = byId[n.dataset.id];
+      if (st && blocked(st)) { observer.unobserve(n); n.remove(); }
+      n = after;
+    }
+    cards = [...reel.children];
+  }, reduced ? 0 : 380);
+  toast(msg, true, { label: "Undo", fn: () => undoDismiss(s, snap) });
+}
+function undoDismiss(s, snap) {
+  prefs = Object.assign({ tags: {}, sources: {}, chans: {}, hidden: {} }, JSON.parse(snap)); savePrefs();
+  rebuildOrder(); render();                                   // brings back the story and anything its rule had removed
+  const c = reel.querySelector(`[data-id="${s.id}"]`);
+  if (c) reel.scrollTop = c.offsetTop;
+}
+
+/* ---------- cards ---------- */
+function buildArt(s, cat, idx) {
+  const art = el("div", "art");
+  const mark = el("div", "mark", s.emoji || cat.emoji); mark.setAttribute("aria-hidden", "true"); art.append(mark);
+  if (s.image && /^https:\/\//i.test(s.image)) {
+    const img = new Image();
+    img.alt = ""; img.decoding = "async"; img.referrerPolicy = "no-referrer"; img.loading = idx < 2 ? "eager" : "lazy";
+    img.addEventListener("load", () => { if (img.naturalWidth < 240) { img.remove(); return; } img.classList.add("ok"); art.classList.add("has-img"); });
+    img.addEventListener("error", () => img.remove());
+    img.src = s.image; art.prepend(img);
+  }
+  return art;
+}
+function buildHeadline(text) {
+  const h = el("h2");
+  text.split(/\s+/).filter(Boolean).forEach((word, n, all) => {
+    const w = el("span", "w"), i = el("i", "", word);
+    w.style.setProperty("--n", n); w.append(i); h.append(w);
+    if (n < all.length - 1) h.append(document.createTextNode(" "));
+  });
+  return h;
+}
+function buildCard(s, isNew, idx) {
+  const cat = catOf(s);
+  const c = el("article", "card"); c.dataset.id = s.id;
+  c.style.setProperty("--c", cat.color); c.style.setProperty("--f", cat.ink === "dark" ? "#17120A" : "#FFFFFF");
+
+  const chan = el("div", "chan fx"); chan.append(el("span", "e", cat.emoji), el("span", "", cat.name));
+  if (isNew) chan.append(el("span", "new", "New"));
+
+  const open = el("a", "open", "Read the full story");
+  open.href = safeUrl(s.url); open.target = "_blank"; open.rel = "noopener noreferrer";
+  open.addEventListener("click", () => openStory(s));
+  const save = el("button", "ic-btn"); save.type = "button"; save.dataset.save = s.id; save.append(icon(HEART));
+  save.addEventListener("click", () => toggleSave(s));
+  const more = el("button", "ic-btn"); more.type = "button"; more.setAttribute("aria-label", "More options"); more.setAttribute("aria-haspopup", "dialog"); more.append(icon(DOTS, "dots"));
+  more.addEventListener("click", () => openMenu(s));
+  const acts = el("div", "acts fx"); acts.style.setProperty("--d", "560ms"); acts.append(open, save, more);
+
+  const body = el("div", "body");
+  chan.style.setProperty("--d", "0ms");
+  body.append(chan, buildHeadline(s.headline));
+  if (s.summary) { const p = el("p", "sum fx", s.summary); p.style.setProperty("--d", "380ms"); body.append(p); }
+  const meta = el("p", "meta fx", `${s.source}, ${ago(s.published)}`); meta.style.setProperty("--d", "470ms");
+  body.append(meta, acts);
+  c.append(buildArt(s, cat, idx), body);
+
+  c.addEventListener("dblclick", (e) => { if (e.target.closest("a,button")) return; burst(c); toggleSave(s, true); });
+  return c;
+}
+function plainCard(parts, extra) {
+  const c = el("article", "card plain end");
+  const art = el("div", "art"), mark = el("div", "mark", parts.mark || "✨"); mark.setAttribute("aria-hidden", "true"); art.append(mark);
+  const body = el("div", "body");
+  body.append(el("h2", "big", parts.title));
+  if (parts.note) body.append(el("p", "note", parts.note));
+  if (extra) body.append(extra);
+  c.append(art, body);
+  return c;
+}
+function endCard() {
+  const stats = el("div", "stats");
+  [["endRead", "Read today"], ["endXp", "Total XP"], ["endSaved", "Saved"]].forEach(([id, label]) => {
+    const s = el("div", "stat"); const b = el("b", "", "0"); b.id = id; s.append(b, el("span", "", label)); stats.append(s);
+  });
+  const wrap = el("div", ""); wrap.style.cssText = "display:flex;flex-direction:column;gap:16px";
+  const back = el("button", "ghost", "Back to the top"); back.type = "button";
+  back.addEventListener("click", () => reel.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" }));
+  const when = DATA.generated_at ? `Updated ${ago(DATA.generated_at)}. ` : "";
+  wrap.append(stats, el("p", "note", `${when}New stories arrive twice a day.`), back);
+  return plainCard({ title: "You're caught up.", mark: "🏁" }, wrap);
+}
+function seeAll() {
+  const b = el("button", "ghost", "See all stories"); b.type = "button";
+  b.addEventListener("click", () => setFilter("all")); return b;
+}
+function emptyCard() {
+  if (!DATA.stories.length) return plainCard({ title: "No stories yet.", note: "Run python news_bot.py --reel, then reload this page.", mark: "📭" });
+  if (filter === "saved") return plainCard({ title: "Nothing saved yet.", note: "Double-tap a story, or tap the heart, to keep it here.", mark: "🤍" }, seeAll());
+  return plainCard({ title: "Nothing here right now.", note: "This channel has no stories left. Check what you've hidden, or come back after the next update.", mark: "🫥" }, seeAll());
+}
+
+/* ---------- render ---------- */
+function view() {
+  if (filter === "saved") return Object.values(saved).reverse();
+  return filter === "all" ? baseOrder : baseOrder.filter((s) => s.category === filter);
+}
+function setActive(card) {
+  activeCard = card;
+  const i = cards.indexOf(card);
+  $("#prog").style.width = `${((i + 1) / Math.max(1, cards.length)) * 100}%`;
+  const accent = card.classList.contains("plain") ? "#7B8CFF" : card.style.getPropertyValue("--c");
+  document.documentElement.style.setProperty("--accent", accent);
+  if (card.classList.contains("end")) { paintHud(); if (!celebrated && card.querySelector(".stats")) { celebrated = true; confetti(24); } }
+}
+function render() {
+  if (observer) observer.disconnect();
+  timers.forEach(clearTimeout); timers.clear();
+  reel.replaceChildren(); byId = {};
+  const list = view();
+  if (!list.length) reel.append(emptyCard());
+  else { list.forEach((s, i) => { byId[s.id] = s; reel.append(buildCard(s, !readAtLoad.has(s.id), i)); }); if (filter !== "saved") reel.append(endCard()); }
+  cards = [...reel.children];
+  cards.forEach((c) => c.dataset.id && syncSave(c.dataset.id));
+  reel.scrollTo({ top: 0 });
+  observer = new IntersectionObserver((entries) => {
+    entries.forEach((en) => {
+      const c = en.target, r = en.intersectionRatio;
+      if (r >= 0.6) {
+        c.classList.add("in"); setActive(c);
+        if (c.dataset.id && !timers.has(c)) timers.set(c, setTimeout(() => markRead(c.dataset.id), 1400));
+      } else {
+        if (timers.has(c)) { clearTimeout(timers.get(c)); timers.delete(c); }
+        if (r <= 0.02) c.classList.remove("in");                  // fully gone: replay the entrance next time
+      }
+    });
+  }, { root: reel, threshold: [0, 0.02, 0.6] });
+  cards.forEach((c) => observer.observe(c));
+  paintHud();
+}
+
+/* ---------- channels ---------- */
+function buildChips() {
+  const defs = [{ key: "all", label: "All" }, ...DATA.categories.map((c) => ({ key: c.name, label: `${c.emoji} ${c.name}` })), { key: "saved", label: "Saved" }];
+  defs.forEach((d) => {
+    const b = el("button", "chip", d.label); b.type = "button"; b.dataset.key = d.key;
+    b.addEventListener("click", () => setFilter(d.key));
+    $("#chips").append(b);
+  });
+  const f = el("button", "chip filters", "Hidden"); f.type = "button"; f.id = "filtersChip"; f.setAttribute("aria-haspopup", "dialog");
+  f.addEventListener("click", openFilters); $("#chips").append(f);
+}
+function setFilter(key) {
+  filter = key; closeSheet();
+  document.querySelectorAll(".chip[data-key]").forEach((b) => {
+    const on = b.dataset.key === key; b.setAttribute("aria-pressed", String(on));
+    if (on) b.scrollIntoView({ inline: "center", block: "nearest", behavior: reduced ? "auto" : "smooth" });
+  });
+  render();
+}
+$("#savedBtn").addEventListener("click", () => setFilter("saved"));
+
+/* ---------- keyboard ---------- */
+function step(dir) { reel.scrollBy({ top: dir * reel.clientHeight, behavior: reduced ? "auto" : "smooth" }); }
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeSheet(); return; }
+  if (sheetOpen() || e.metaKey || e.ctrlKey || e.altKey || e.target.closest("input,textarea")) return;
+  const s = activeCard && byId[activeCard.dataset.id];
+  switch (e.key) {
+    case "ArrowDown": case "j": case "PageDown": e.preventDefault(); step(1); break;
+    case "ArrowUp": case "k": case "PageUp": e.preventDefault(); step(-1); break;
+    case "s": if (s) toggleSave(s); break;
+    case "x": if (s) openMenu(s); break;
+    case "o": case "Enter": if (s && !e.target.closest("a,button")) { openStory(s); window.open(safeUrl(s.url), "_blank", "noopener,noreferrer"); } break;
+  }
+});
+
+buildChips();
+rebuildOrder();
+setFilter("all");
+reel.focus({ preventScroll: true });
+if (!store.get("welcomed", false) && DATA.stories.length) { store.set("welcomed", true); setTimeout(() => toast("Swipe up for the next story", true), 700); }
+})();
+</script>
+</body>
+</html>
