@@ -3,3 +3,4 @@ digest.html
 __pycache__/
 .venv/
 docs/data.js
+docs/trending.js

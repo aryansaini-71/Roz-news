@@ -5,6 +5,8 @@ RSS feeds + Google News  ->  Gemini (Google AI Studio) picks + summarizes  ->  s
 
 Usage:
     python news_bot.py --reel       # build the news-reel site data (docs/data.js)
+    python news_bot.py --trending   # build the Trending tab data (docs/trending.js)
+    python news_bot.py --check-sources   # test which trending sources work from this machine
     python news_bot.py              # build and email the digest
     python news_bot.py --dry-run    # build digest.html locally, don't send
     python news_bot.py --hours 24   # override the lookback window
@@ -97,8 +99,9 @@ OG_PATTERNS = [re.compile(p, re.I) for p in (
 )]
 
 
-def good_image(url: str) -> str:
-    """Return an https image URL worth showing, or '' for logos and Google placeholders."""
+def good_image(url: str, allow_google: bool = False) -> str:
+    """Return an https image URL worth showing, or '' for logos and Google placeholders.
+    allow_google=True keeps Google-hosted thumbnails (Google Trends pictures are real photos)."""
     url = html.unescape((url or "").strip())
     if url.startswith("//"):
         url = "https:" + url
@@ -107,7 +110,8 @@ def good_image(url: str) -> str:
     if url.startswith("http://"):
         url = "https://" + url[7:]
     host = urlparse(url).netloc.lower()
-    if any(h in host for h in ("google", "gstatic", "gravatar", "doubleclick")) or IMG_JUNK.search(url):
+    blocked = ("gravatar", "doubleclick") if allow_google else ("google", "gstatic", "gravatar", "doubleclick")
+    if any(h in host for h in blocked) or IMG_JUNK.search(url):
         return ""
     return url
 
@@ -286,7 +290,7 @@ class GeminiClient:
 def make_client(cfg: dict):
     ai = cfg.get("ai", {})
     key = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
-    if not ai.get("enabled", True) or not key or "..." in key:
+    if not ai.get("enabled", True) or not key or "..." in key or "paste" in key:
         log.info("AI summaries off (no GEMINI_API_KEY set): headlines only, newest first")
         return None
     models = [ai.get("model", "gemini-3.5-flash-lite"), *ai.get("fallback_models", [])]
@@ -523,11 +527,25 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="write digest.html instead of emailing")
     ap.add_argument("--hours", type=float, help="override lookback_hours")
     ap.add_argument("--reel", action="store_true", help="build the swipeable news site data (docs/data.js)")
+    ap.add_argument("--trending", action="store_true", help="build the Trending tab data (docs/trending.js)")
+    ap.add_argument("--check-sources", action="store_true", help="test which trending sources work from this machine")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load_dotenv(ROOT / ".env")
     cfg = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
+
+    if args.check_sources or args.trending:
+        # trending.py does "import news_bot"; make that resolve to this running module, not a second copy
+        sys.modules.setdefault("news_bot", sys.modules[__name__])
+        import trending
+        if args.check_sources:
+            trending.check_sources(cfg)
+            return
+        client = make_client(cfg)
+        trending.build_trending(cfg, client, ROOT / "docs")
+        if not args.reel:
+            return
     tz = ZoneInfo(cfg.get("timezone", "UTC"))
     now = datetime.now(tz)
     since = datetime.now(timezone.utc) - timedelta(hours=args.hours or cfg.get("lookback_hours", 13))

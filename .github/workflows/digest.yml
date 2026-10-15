@@ -2,9 +2,8 @@ name: Update news reel
 
 on:
   schedule:
-    # GitHub cron is UTC. Calgary is UTC-6 (summer) / UTC-7 (winter).
-    - cron: "0 13 * * *"   # 7:00 AM summer, 6:00 AM winter
-    - cron: "0 0 * * *"    # 6:00 PM summer, 5:00 PM winter
+    # GitHub cron is UTC. Every 4 hours keeps Trending fresh (it is cheap: about 10 AI calls per run).
+    - cron: "0 */4 * * *"
   push:
     branches: [main]       # first deploy happens when you push
   workflow_dispatch:       # "Run workflow" button
@@ -29,10 +28,11 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Fetch news and write docs/data.js
-        run: python news_bot.py --reel
+      - name: Fetch news and trending, write docs/data.js and docs/trending.js
+        run: python news_bot.py --reel --trending
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

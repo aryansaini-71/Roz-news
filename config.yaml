@@ -98,3 +98,27 @@ categories:
       - "Marvel Studios"
       - "DC Studios"
       - "box office weekend"
+
+# ---------------------------------------------------------------
+# Trending tab (python news_bot.py --trending)
+#   desi = Indian side, world = everything else. desi_share is the Indian fraction of the tab.
+# ---------------------------------------------------------------
+trending:
+  counts: {topic: 14, meme: 14, video: 8}     # cards per kind; total about 36
+  desi_share: 0.5                              # 0.5 = half Indian, half worldwide
+  reddit:
+    desi: [IndianDankMemes, indiameme, IndianMeyMeys, IndianPeopleTwitter, CricketShitpost, bollywoodmemes]
+    world: [memes, dankmemes, me_irl, funny]
+    per_sub: 25                                # posts looked at per subreddit
+    max_per_sub: 4                             # so one sub can't take over
+  google_trends:
+    desi: [IN]
+    world: [US, GB, CA]
+  news_queries:                                # Google News searches that add context for topics
+    desi: ["Bollywood", "IPL OR cricket India", "viral video India", "Punjabi singer", "web series OTT India", "trending India"]
+    world: ["viral on social media", "celebrity news", "trending challenge", "internet reacts"]
+  youtube:                                     # needs YOUTUBE_API_KEY (see README)
+    desi: [IN]
+    world: [US, GB]
+  wikipedia: true
+  bluesky_fallback: true                       # fills worldwide memes if Reddit blocks the server

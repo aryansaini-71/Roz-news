@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101018">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RozNews">
-<meta name="description" content="Swipe through today's tech, AI, games, movies and Canada news, one summary at a time.">
+<meta name="description" content="Swipe through today's tech, AI, games, movies and Canada news, plus what the internet is talking about.">
 <title>RozNews</title>
 <style>
 @font-face{font-family:"Bricolage";src:url(fonts/bricolage.woff2) format("woff2");font-weight:200 800;font-stretch:75% 100%;font-display:swap}
@@ -48,6 +48,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 @keyframes glow{0%{box-shadow:0 0 0 0 var(--accent,#7B8CFF)}100%{box-shadow:0 0 0 9px transparent}}
 .level span{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 
+.tabs{display:flex;gap:4px;margin:2px 14px 4px;padding:3px;border-radius:99px;background:rgba(255,255,255,.07)}
+.tab{flex:1;height:34px;border:0;border-radius:99px;background:transparent;color:var(--muted);font-weight:700;font-size:15px;transition:background .2s,color .2s}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--chrome)}
 .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 14px 12px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;height:34px;padding:0 14px;border-radius:17px;border:1.5px solid var(--line);background:transparent;font-weight:600;font-size:14px;white-space:nowrap;transition:background .2s,color .2s}
@@ -75,6 +78,23 @@ main:focus-visible{outline:none}
 .art.has-img::after{content:"";position:absolute;inset:0;z-index:2;background:linear-gradient(to bottom,transparent 35%,var(--c) 100%)}
 .mark{position:absolute;top:6%;right:-9%;font-size:54cqw;line-height:1;opacity:.17;transform:rotate(-11deg);pointer-events:none}
 .art.has-img .mark{display:none}
+
+/* memes, videos and small pictures: show the whole image over a blurred copy of itself */
+.art .bg{display:none}
+.art.fit .bg{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(26px) brightness(.55) saturate(1.2);transform:scale(1.35);opacity:0;transition:opacity .5s}
+.art.fit .bg.ok{opacity:1}
+.art.fit img.fg{object-fit:contain;object-position:50% 50%;transform:none;z-index:1}
+.art.fit+.body{padding-top:14px}
+.art.fit.has-img::before,.art.fit.has-img::after{display:none}
+.card.in .art.fit img.ok{animation:none}
+.play{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;background:rgba(0,0,0,.55);z-index:3;display:grid;place-items:center;pointer-events:none}
+.play::after{content:"";border-left:22px solid #fff;border-top:13px solid transparent;border-bottom:13px solid transparent;margin-left:6px}
+.card.k-meme h2{font-size:clamp(20px,6.2cqw,30px);line-height:1.1}
+.say{display:flex;align-items:flex-start;gap:10px;text-align:left;width:100%;padding:12px 14px;border-radius:18px;border:1.5px dashed currentColor;background:rgba(255,255,255,.08);color:var(--f);font-family:var(--head);font-weight:600;font-size:16px;line-height:1.3}
+.say .q{font-size:18px;line-height:1.2}
+.say small{display:block;margin-top:3px;font-weight:500;font-size:12px;opacity:.7}
+.say.copied{border-style:solid}
+.say:active{transform:scale(.98)}
 
 .body{position:relative;flex:none;display:flex;flex-direction:column;gap:14px;padding:4px 22px calc(26px + env(safe-area-inset-bottom))}
 .chan{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px}
@@ -106,11 +126,13 @@ main:focus-visible{outline:none}
   .card.in .fx{animation:fadeup .6s var(--ease) both;animation-delay:var(--d,0ms)}
   .card.in .art img.ok{animation:drift 9s cubic-bezier(.2,.6,.2,1) both}
   .card.in .mark{animation:spinin .9s var(--ease) both}
+  .card.in .art.fit img.fg.ok{animation:memein .55s var(--ease) both}
   .card.in .chan .e{animation:wiggle .7s ease-out .15s both}
   .card.leaving{animation:leave .38s ease-in forwards;pointer-events:none}
 }
 @keyframes rise{from{transform:translateY(110%)}to{transform:none}}
 @keyframes fadeup{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes memein{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:none}}
 @keyframes drift{from{transform:scale(1.12)}to{transform:scale(1)}}
 @keyframes spinin{from{opacity:0;transform:rotate(-34deg) scale(.55)}to{opacity:.17;transform:rotate(-11deg) scale(1)}}
 @keyframes wiggle{0%{transform:rotate(0)}30%{transform:rotate(-14deg) scale(1.15)}60%{transform:rotate(9deg)}100%{transform:rotate(0)}}
@@ -166,6 +188,7 @@ main:focus-visible{outline:none}
   .hint{display:block;position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:13px;color:#6F6D84}
 }
 @media (max-height:680px){
+  .tab{height:30px}
   .body{gap:10px;padding-bottom:18px}
   .card h2{font-size:clamp(26px,8cqw,38px)}
   .sum{font-size:17px}
@@ -186,6 +209,10 @@ main:focus-visible{outline:none}
     </div>
     <button class="pill saved-btn" id="savedBtn" type="button" aria-label="Show saved stories"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg><span id="savedN">0</span></button>
   </header>
+  <div class="tabs" role="tablist" aria-label="Section">
+    <button class="tab" role="tab" type="button" data-mode="news" aria-selected="true">News</button>
+    <button class="tab" role="tab" type="button" data-mode="trend" aria-selected="false">Trending</button>
+  </div>
   <nav class="chips" id="chips" aria-label="Channels"></nav>
   <div class="progress" aria-hidden="true"><i id="prog"></i></div>
   <div class="stage">
@@ -207,10 +234,13 @@ main:focus-visible{outline:none}
 <noscript><p style="padding:24px">RozNews needs JavaScript to show the reel.</p></noscript>
 
 <script src="data.js"></script>
+<script src="trending.js"></script>
 <script>
 (() => {
 "use strict";
-const DATA = window.REEL || { categories: [], stories: [], generated_at: "" };
+const EMPTY = { categories: [], stories: [], generated_at: "" };
+const NEWS = window.REEL || EMPTY, TREND = window.TREND || EMPTY;
+let DATA = NEWS;                      // whichever tab is showing
 const GOAL = 5;                       // new stories to read per day to keep the streak
 const TITLES = ["Rookie", "Scout", "Analyst", "Insider", "Oracle"];
 const HEART = "M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z";
@@ -246,7 +276,8 @@ const ago = (iso) => {
   return `${Math.round(m / 1440)}d ago`;
 };
 
-const catMap = Object.fromEntries(DATA.categories.map((c) => [c.name, c]));
+const catMap = Object.fromEntries([...NEWS.categories, ...TREND.categories].map((c) => [c.name, c]));   // saved stories can come from either tab
+let mode = store.get("mode", "news") === "trend" ? "trend" : "news";
 const catOf = (s) => catMap[s.category] || { name: s.category, emoji: s.emoji || "📰", color: "#3B4CCA", ink: "light" };
 const readAtLoad = new Set(Object.keys(done).filter((id) => done[id].r));
 
@@ -393,7 +424,7 @@ function burst(card) {
 /* ---------- bottom sheet ---------- */
 const sheet = { wrap: $("#sheet"), title: $("#sheetTitle"), rows: $("#sheetRows"), back: $("#sheetBack"), opener: null };
 const sheetOpen = () => sheet.wrap.classList.contains("open");
-function lockBehind(on) { [".hud", "#chips", ".stage"].forEach((q) => { $(q).inert = on; }); }
+function lockBehind(on) { [".hud", ".tabs", "#chips", ".stage"].forEach((q) => { $(q).inert = on; }); }
 function openSheet({ title, rows, back }) {
   sheet.title.textContent = title;
   sheet.rows.replaceChildren(...rows.map((r) => {
@@ -481,13 +512,19 @@ function undoDismiss(s, snap) {
 function buildArt(s, cat, idx) {
   const art = el("div", "art");
   const mark = el("div", "mark", s.emoji || cat.emoji); mark.setAttribute("aria-hidden", "true"); art.append(mark);
+  if (s.kind === "meme" || s.kind === "video") art.classList.add("fit");
   if (s.image && /^https:\/\//i.test(s.image)) {
-    const img = new Image();
-    img.alt = ""; img.decoding = "async"; img.referrerPolicy = "no-referrer"; img.loading = idx < 2 ? "eager" : "lazy";
-    img.addEventListener("load", () => { if (img.naturalWidth < 240) { img.remove(); return; } img.classList.add("ok"); art.classList.add("has-img"); });
-    img.addEventListener("error", () => img.remove());
-    img.src = s.image; art.prepend(img);
+    const mk = (cls) => { const i = new Image(); i.alt = ""; i.className = cls; i.decoding = "async"; i.referrerPolicy = "no-referrer"; i.loading = idx < 2 ? "eager" : "lazy"; return i; };
+    const img = mk("fg"), bg = mk("bg");
+    img.addEventListener("load", () => {
+      if (img.naturalWidth < 240) { img.remove(); bg.remove(); return; }
+      if (s.kind === "topic" && img.naturalWidth < 600) art.classList.add("fit");     // small picture: don't blow it up
+      img.classList.add("ok"); bg.classList.add("ok"); art.classList.add("has-img");
+    });
+    img.addEventListener("error", () => { img.remove(); bg.remove(); });
+    img.src = s.image; bg.src = s.image; art.prepend(bg, img);
   }
+  if (s.kind === "video") { const p = el("div", "play"); p.setAttribute("aria-hidden", "true"); art.append(p); }
   return art;
 }
 function buildHeadline(text) {
@@ -501,13 +538,14 @@ function buildHeadline(text) {
 }
 function buildCard(s, isNew, idx) {
   const cat = catOf(s);
-  const c = el("article", "card"); c.dataset.id = s.id;
+  const c = el("article", "card" + (s.kind ? " k-" + s.kind : "")); c.dataset.id = s.id;
   c.style.setProperty("--c", cat.color); c.style.setProperty("--f", cat.ink === "dark" ? "#17120A" : "#FFFFFF");
 
   const chan = el("div", "chan fx"); chan.append(el("span", "e", cat.emoji), el("span", "", cat.name));
+  if (s.origin === "in") chan.append(el("span", "new", "Desi"));
   if (isNew) chan.append(el("span", "new", "New"));
 
-  const open = el("a", "open", "Read the full story");
+  const open = el("a", "open", { meme: "See the original", video: "Watch on YouTube", topic: "Read more" }[s.kind] || "Read the full story");
   open.href = safeUrl(s.url); open.target = "_blank"; open.rel = "noopener noreferrer";
   open.addEventListener("click", () => openStory(s));
   const save = el("button", "ic-btn"); save.type = "button"; save.dataset.save = s.id; save.append(icon(HEART));
@@ -520,7 +558,20 @@ function buildCard(s, isNew, idx) {
   chan.style.setProperty("--d", "0ms");
   body.append(chan, buildHeadline(s.headline));
   if (s.summary) { const p = el("p", "sum fx", s.summary); p.style.setProperty("--d", "380ms"); body.append(p); }
-  const meta = el("p", "meta fx", `${s.source}, ${ago(s.published)}`); meta.style.setProperty("--d", "470ms");
+  if (s.starter) {
+    const say = el("button", "say fx"); say.type = "button"; say.style.setProperty("--d", "430ms");
+    const hint = el("small", "", "Tap to copy and send it to a friend");
+    const q = el("span", "q", "💬"); q.setAttribute("aria-hidden", "true");
+    say.append(q, el("span", "", ""));
+    say.lastChild.append(document.createTextNode(s.starter), hint);
+    say.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(s.starter); } catch { /* clipboard blocked: still say it out loud */ }
+      say.classList.add("copied"); hint.textContent = "Copied";
+      award(s.id, "c", 5);
+    });
+    body.append(say);
+  }
+  const meta = el("p", "meta fx", [s.heat, s.source, ago(s.published)].filter(Boolean).join(" · ")); meta.style.setProperty("--d", "470ms");
   body.append(meta, acts);
   c.append(buildArt(s, cat, idx), body);
 
@@ -546,7 +597,7 @@ function endCard() {
   const back = el("button", "ghost", "Back to the top"); back.type = "button";
   back.addEventListener("click", () => reel.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" }));
   const when = DATA.generated_at ? `Updated ${ago(DATA.generated_at)}. ` : "";
-  wrap.append(stats, el("p", "note", `${when}New stories arrive twice a day.`), back);
+  wrap.append(stats, el("p", "note", `${when}${mode === "trend" ? "New trends arrive every few hours." : "New stories arrive every few hours."}`), back);
   return plainCard({ title: "You're caught up.", mark: "🏁" }, wrap);
 }
 function seeAll() {
@@ -554,7 +605,9 @@ function seeAll() {
   b.addEventListener("click", () => setFilter("all")); return b;
 }
 function emptyCard() {
-  if (!DATA.stories.length) return plainCard({ title: "No stories yet.", note: "Run python news_bot.py --reel, then reload this page.", mark: "📭" });
+  if (!DATA.stories.length && filter !== "saved") return plainCard(mode === "trend"
+    ? { title: "Nothing trending yet.", note: "Run python news_bot.py --trending, then reload this page.", mark: "📭" }
+    : { title: "No stories yet.", note: "Run python news_bot.py --reel, then reload this page.", mark: "📭" });
   if (filter === "saved") return plainCard({ title: "Nothing saved yet.", note: "Double-tap a story, or tap the heart, to keep it here.", mark: "🤍" }, seeAll());
   return plainCard({ title: "Nothing here right now.", note: "This channel has no stories left. Check what you've hidden, or come back after the next update.", mark: "🫥" }, seeAll());
 }
@@ -562,7 +615,9 @@ function emptyCard() {
 /* ---------- render ---------- */
 function view() {
   if (filter === "saved") return Object.values(saved).reverse();
-  return filter === "all" ? baseOrder : baseOrder.filter((s) => s.category === filter);
+  if (filter === "all") return baseOrder;
+  if (filter === "desi") return baseOrder.filter((s) => s.origin === "in");
+  return baseOrder.filter((s) => s.category === filter);
 }
 function setActive(card) {
   activeCard = card;
@@ -600,7 +655,9 @@ function render() {
 
 /* ---------- channels ---------- */
 function buildChips() {
-  const defs = [{ key: "all", label: "All" }, ...DATA.categories.map((c) => ({ key: c.name, label: `${c.emoji} ${c.name}` })), { key: "saved", label: "Saved" }];
+  const defs = [{ key: "all", label: "All" }, ...DATA.categories.map((c) => ({ key: c.name, label: `${c.emoji} ${c.name}` })),
+    ...(mode === "trend" && DATA.stories.some((s) => s.origin === "in") ? [{ key: "desi", label: "Desi" }] : []), { key: "saved", label: "Saved" }];
+  $("#chips").replaceChildren();
   defs.forEach((d) => {
     const b = el("button", "chip", d.label); b.type = "button"; b.dataset.key = d.key;
     b.addEventListener("click", () => setFilter(d.key));
@@ -619,6 +676,15 @@ function setFilter(key) {
 }
 $("#savedBtn").addEventListener("click", () => setFilter("saved"));
 
+/* ---------- tabs: News | Trending ---------- */
+function setMode(m, first) {
+  mode = m; DATA = m === "trend" ? TREND : NEWS; store.set("mode", m);
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.mode === m)));
+  buildChips(); rebuildOrder(); celebrated = false; setFilter("all");
+  if (!first) reel.focus({ preventScroll: true });
+}
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { if (t.dataset.mode !== mode) setMode(t.dataset.mode); }));
+
 /* ---------- keyboard ---------- */
 function step(dir) { reel.scrollBy({ top: dir * reel.clientHeight, behavior: reduced ? "auto" : "smooth" }); }
 document.addEventListener("keydown", (e) => {
@@ -634,9 +700,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-buildChips();
-rebuildOrder();
-setFilter("all");
+setMode(mode, true);
 reel.focus({ preventScroll: true });
 if (!store.get("welcomed", false) && DATA.stories.length) { store.set("welcomed", true); setTimeout(() => toast("Swipe up for the next story", true), 700); }
 })();
