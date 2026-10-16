@@ -59,6 +59,8 @@ class Item:
     image: str = ""
     final_url: str = ""
     tags: list = field(default_factory=list)
+    kind: str = ""        # "find" for GitHub repos / Show HN projects, "" for news
+    heat: str = ""        # e.g. "★ 2.3K"
 
 
 # ----------------------------------------------------------------- helpers
@@ -231,6 +233,95 @@ def fetch_category(cat: dict, since: datetime, region: str) -> list[Item]:
     return items
 
 
+# ---------------------------------------------------------------- findings
+def _short(n: float) -> str:
+    n = int(n)
+    return f"{n / 1000:.1f}K".replace(".0K", "K") if n >= 1000 else str(n)
+
+
+def _gh_get(url: str):
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"}
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if token and "..." not in token:
+        headers["Authorization"] = f"Bearer {token}"
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=15) as r:
+        return json.load(r)
+
+
+def fetch_github_finds(spec: dict) -> list[Item]:
+    """Brand-new GitHub repos that are gaining stars fast, per topic (llm, ai-agents, mcp, ...)."""
+    days, stars = int(spec.get("github_days", 7)), int(spec.get("github_min_stars", 100))
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    topics = spec.get("github_topics", [])
+    queries = [f"topic:{t} created:>{since} stars:>{stars}" for t in topics]
+    if topics:
+        queries.append(f"created:>{since} stars:>{stars * 3}")       # biggest newcomers overall
+    pause = 1.5 if os.getenv("GITHUB_TOKEN") else 6.5                 # search API: 30/min with a token, 10/min without
+    found: dict[str, Item] = {}
+    stars_of: dict[str, int] = {}
+    for n, q in enumerate(queries):
+        if n:
+            time.sleep(pause)
+        url = f"https://api.github.com/search/repositories?q={quote_plus(q)}&sort=stars&order=desc&per_page=8"
+        try:
+            data = _gh_get(url)
+        except urllib.error.HTTPError as exc:
+            log.warning("GitHub search stopped (HTTP %s). Add GITHUB_TOKEN to .env for a higher limit", exc.code)
+            break
+        except Exception as exc:
+            log.warning("GitHub search failed: %s", exc)
+            continue
+        for r in data.get("items", []):
+            name, desc = r.get("full_name", ""), clean(r.get("description") or "", 200)
+            if not name or not desc or r.get("fork") or r.get("archived") or name in found:
+                continue
+            topics_txt = ", ".join((r.get("topics") or [])[:6])
+            found[name] = Item(
+                title=f"{name}: {desc}", link=r["html_url"], source="GitHub",
+                published=datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")),
+                summary=clean(f"{desc} Language: {r.get('language') or 'n/a'}. Topics: {topics_txt}. "
+                              f"{r.get('stargazers_count', 0)} stars in {days} days or less.", 300),
+                image=f"https://opengraph.githubassets.com/1/{name}",
+                kind="find", heat=f"★ {_short(r.get('stargazers_count', 0))}")
+            stars_of[name] = int(r.get("stargazers_count", 0))
+    log.info("  GitHub: %d new repos", len(found))
+    return sorted(found.values(), key=lambda i: stars_of.get(i.link.rsplit('github.com/', 1)[-1], 0), reverse=True)
+
+
+def fetch_show_hn(spec: dict) -> list[Item]:
+    """Show HN: projects people just built, with enough upvotes to be worth a look."""
+    ts = int(time.time() - 48 * 3600)
+    pts = int(spec.get("show_hn_min_points", 40))
+    url = ("https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=40"
+           f"&numericFilters=points%3E{pts},created_at_i%3E{ts}")
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=15) as r:
+            hits = json.load(r).get("hits", [])
+    except Exception as exc:
+        log.warning("Show HN fetch failed: %s", exc)
+        return []
+    out = []
+    for h in sorted(hits, key=lambda h: h.get("points") or 0, reverse=True)[:12]:
+        title = re.sub(r"^show hn:\s*", "", h.get("title") or "", flags=re.I).strip()
+        if not title:
+            continue
+        out.append(Item(
+            title=title, link=h.get("url") or f"https://news.ycombinator.com/item?id={h.get('objectID')}",
+            source="Show HN", published=datetime.fromtimestamp(h.get("created_at_i", ts), tz=timezone.utc),
+            summary=clean(h.get("story_text") or "", 300), kind="find", heat=f"{h.get('points', 0)} points"))
+    log.info("  Show HN: %d projects", len(out))
+    return out
+
+
+def fetch_finds(spec: dict) -> list[Item]:
+    """GitHub repos and Show HN projects, interleaved so neither crowds the other out."""
+    from itertools import zip_longest
+    repos = fetch_github_finds(spec) if spec.get("github_topics") else []
+    hn = fetch_show_hn(spec) if spec.get("show_hn", True) else []
+    mixed = [i for pair in zip_longest(repos[:12], hn[:8]) for i in pair if i]
+    return mixed[: int(spec.get("max", 20))]
+
+
 # ------------------------------------------------------------ AI (Google Gemini)
 class AIAuthError(Exception):
     """The API key was rejected; no point trying again this run."""
@@ -333,13 +424,21 @@ def parse_json_list(text: str) -> list:
 
 def rank_with_ai(client, cat: dict, items: list[Item], top_n: int) -> list[Item]:
     listing = "\n".join(
-        f"[{n}] {i.title} — {i.source}. {i.summary[:300]}" for n, i in enumerate(items)
+        f"[{n}] {'[FIND] ' if i.kind == 'find' else ''}{i.title} — {i.source}"
+        f"{' (' + i.heat + ')' if i.heat else ''}. {i.summary[:300]}" for n, i in enumerate(items)
     )
+    has_finds = any(i.kind == "find" for i in items)
+    finds_rule = (
+        "Items marked [FIND] are things to try: new GitHub repos and Show HN projects. Include about "
+        f"{max(2, top_n // 2)} finds among your picks. For a find, the headline names it plainly "
+        "(for example 'repo-name: what it does'), and the summary says what it does and why a developer would try it. "
+        "Prefer genuinely useful tools (AI coding, agents, MCP, developer tooling, vibe coding) over gimmicks and hype.\n\n"
+    ) if has_finds else ""
     prompt = (
         f"You're curating the '{cat['name']}' channel of a swipeable news reel for a software developer in Calgary.\n"
         f"What counts as important here: {cat.get('focus', 'the most significant stories')}\n\n"
         f"Pick the {top_n} most important, distinct stories (skip duplicates, clickbait, deals/coupons, "
-        f"and minor opinion pieces). For each one write:\n"
+        f"and minor opinion pieces). {finds_rule}For each one write:\n"
         f'- "headline": a plain, punchy headline of 12 words or fewer (no clickbait, no source name)\n'
         f'- "summary": 2 short sentences, under 45 words total: what happened, then why it matters. '
         f"Use only facts in the text below; never invent details.\n"
@@ -465,7 +564,7 @@ def build_reel(cfg: dict, sections: list[tuple[str, list[Item]]], out_dir: Path)
                 "summary": it.summary if it.headline else usable_summary(it),
                 "emoji": it.emoji or cats_cfg[name].get("emoji", "📰"),
                 "source": it.source, "url": it.final_url or it.link,
-                "image": it.image, "tags": it.tags,
+                "image": it.image, "tags": it.tags, "kind": it.kind, "heat": it.heat,
                 "published": it.published.astimezone(timezone.utc).isoformat(timespec="seconds"),
             })
         rank += 1
@@ -559,7 +658,13 @@ def main() -> None:
         items = fetch_category(cat, since, cfg.get("region", "US"))
         log.info("%-18s %3d fresh stories", cat["name"], len(items))
         sys.stdout.flush()
-        sections.append((cat["name"], pick_top(client, pick_cfg, cat, items)))
+        if args.reel and cat.get("finds"):       # mix findings in so newest-first truncation can't push them out
+            from itertools import zip_longest
+            finds = fetch_finds(cat["finds"])
+            news = items[: 40 - len(finds)]
+            items = [i for pair in zip_longest(news, finds) for i in pair if i]
+        cat_cfg = {**pick_cfg, "top_n": cat.get("reel_top_n", pick_cfg["top_n"])} if args.reel else pick_cfg
+        sections.append((cat["name"], pick_top(client, cat_cfg, cat, items)))
 
     if args.reel:
         picked = [it for _, items in sections for it in items]

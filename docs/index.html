@@ -281,6 +281,27 @@ let mode = store.get("mode", "news") === "trend" ? "trend" : "news";
 const catOf = (s) => catMap[s.category] || { name: s.category, emoji: s.emoji || "📰", color: "#3B4CCA", ink: "light" };
 const readAtLoad = new Set(Object.keys(done).filter((id) => done[id].r));
 
+/* ---------- "seen twice" rule ----------
+   A story counts as seen once per visit (a visit = 30+ minutes since you last saw it, so reloading doesn't inflate it).
+   Seen on 2 visits -> it stops showing in the feed on the next load. Saved stories always stay in Saved. */
+const SEEN_LIMIT = 2, VISIT_GAP = 30 * 60 * 1000;
+let seen = store.get("seen", null);
+if (!seen) {                                   // first time with this rule: stories you already read count as seen once
+  seen = {}; Object.keys(done).forEach((id) => { if (done[id].r) seen[id] = { n: 1, t: Date.now() }; });
+  store.set("seen", seen);
+}
+const seenAtLoad = new Set(Object.keys(seen).filter((id) => seen[id].n >= SEEN_LIMIT));   // fixed at load so cards don't vanish mid-scroll
+const countedNow = new Set();
+function countSeen(id) {
+  if (countedNow.has(id)) return;
+  countedNow.add(id);
+  const r = seen[id] || (seen[id] = { n: 0, t: 0 }), now = Date.now();
+  if (r.n === 0 || now - r.t > VISIT_GAP) r.n += 1;
+  r.t = now;
+  const ids = Object.keys(seen); if (ids.length > 4000) ids.sort((a, b) => seen[a].t - seen[b].t).slice(0, 1000).forEach((k) => delete seen[k]);
+  store.set("seen", seen);
+}
+
 /* ---------- the "algorithm" ----------
    Every story has 1-3 topic tags. Hiding with a reason teaches the feed:
    - hide a topic     -> that tag drops to -3 and any story carrying it is filtered out
@@ -303,7 +324,7 @@ function learn(s, w) {
 let baseOrder = [];
 function rebuildOrder() {
   baseOrder = DATA.stories.map((s, i) => ({ s, sc: score(s, i), r: readAtLoad.has(s.id) ? 1 : 0 }))
-    .filter((x) => !blocked(x.s))
+    .filter((x) => !blocked(x.s) && !seenAtLoad.has(x.s.id))
     .sort((a, b) => a.r - b.r || b.sc - a.sc)                     // unread first, then best score
     .map((x) => x.s);
 }
@@ -365,6 +386,7 @@ function award(id, flag, pts) {
   return true;
 }
 function markRead(id) {
+  countSeen(id);
   if (!award(id, "r", 10)) return;
   if (today.key !== dayKey()) today = { key: dayKey(), reads: 0 };
   today.reads += 1; store.set("today", today);
@@ -469,6 +491,9 @@ function openFilters() {
   Object.keys(prefs.chans).filter((c) => prefs.chans[c] < 0).forEach((c) => rows.push({ label: `Less of ${c}`, sub: "Tap to reset", onClick: () => { delete prefs.chans[c]; afterFilterChange(); } }));
   const nh = Object.keys(prefs.hidden).length;
   if (nh) rows.push({ label: `${nh} hidden ${nh === 1 ? "story" : "stories"}`, sub: "Tap to bring them back", onClick: () => { prefs.hidden = {}; afterFilterChange(); } });
+  const known = new Set([...NEWS.stories, ...TREND.stories].map((s) => s.id));
+  const nSeen = [...seenAtLoad].filter((id) => known.has(id)).length;
+  if (nSeen) rows.push({ label: `${nSeen} already seen twice`, sub: "Hidden from the feed. Tap to show them again", onClick: () => { seenAtLoad.forEach((id) => { if (seen[id]) seen[id].n = 1; }); seenAtLoad.clear(); store.set("seen", seen); afterFilterChange(); } });
   if (rows.length) rows.push({ label: "Reset everything I've taught it", danger: true, onClick: () => { prefs = { tags: {}, sources: {}, chans: {}, hidden: {} }; afterFilterChange(); } });
   else rows.push({ label: "Nothing hidden yet", sub: "Tap the three dots on a story, then Not interested.", onClick: closeSheet });
   openSheet({ title: "What you've hidden", rows });
@@ -512,7 +537,7 @@ function undoDismiss(s, snap) {
 function buildArt(s, cat, idx) {
   const art = el("div", "art");
   const mark = el("div", "mark", s.emoji || cat.emoji); mark.setAttribute("aria-hidden", "true"); art.append(mark);
-  if (s.kind === "meme" || s.kind === "video") art.classList.add("fit");
+  if (s.kind === "meme" || s.kind === "video" || s.kind === "find") art.classList.add("fit");
   if (s.image && /^https:\/\//i.test(s.image)) {
     const mk = (cls) => { const i = new Image(); i.alt = ""; i.className = cls; i.decoding = "async"; i.referrerPolicy = "no-referrer"; i.loading = idx < 2 ? "eager" : "lazy"; return i; };
     const img = mk("fg"), bg = mk("bg");
@@ -545,7 +570,7 @@ function buildCard(s, isNew, idx) {
   if (s.origin === "in") chan.append(el("span", "new", "Desi"));
   if (isNew) chan.append(el("span", "new", "New"));
 
-  const open = el("a", "open", { meme: "See the original", video: "Watch on YouTube", topic: "Read more" }[s.kind] || "Read the full story");
+  const open = el("a", "open", { meme: "See the original", video: "Watch on YouTube", topic: "Read more", find: "Check it out" }[s.kind] || "Read the full story");
   open.href = safeUrl(s.url); open.target = "_blank"; open.rel = "noopener noreferrer";
   open.addEventListener("click", () => openStory(s));
   const save = el("button", "ic-btn"); save.type = "button"; save.dataset.save = s.id; save.append(icon(HEART));
@@ -609,7 +634,7 @@ function emptyCard() {
     ? { title: "Nothing trending yet.", note: "Run python news_bot.py --trending, then reload this page.", mark: "📭" }
     : { title: "No stories yet.", note: "Run python news_bot.py --reel, then reload this page.", mark: "📭" });
   if (filter === "saved") return plainCard({ title: "Nothing saved yet.", note: "Double-tap a story, or tap the heart, to keep it here.", mark: "🤍" }, seeAll());
-  return plainCard({ title: "Nothing here right now.", note: "This channel has no stories left. Check what you've hidden, or come back after the next update.", mark: "🫥" }, seeAll());
+  return plainCard({ title: "Nothing here right now.", note: "You've seen everything here. New ones arrive every few hours, or check what you've hidden.", mark: "🫥" }, seeAll());
 }
 
 /* ---------- render ---------- */

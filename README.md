@@ -2,7 +2,7 @@
 
 A swipeable news reel with two tabs.
 
-- **News**: one story per screen with a picture and a short AI summary, across 7 channels:
+- **News**: one story per screen with a picture and a short AI summary, across 7 channels (**Tech** is aimed at software developers and AI, and mixes news with *findings*: new GitHub repos and Show HN projects worth trying, shown as "Check it out" cards):
   Tech, AI & Cloud, Tech Job Market, Canada & Alberta, Business & Markets, Games, Movies.
 - **Trending**: what everyone is talking about, in one mixed reel of **memes**, **topics** (viral news, celebrity and pop culture, sports, Bollywood/OTT/music) and **trending videos**. About half Indian ("Desi" badge, plus a Desi filter chip) and half worldwide. Topic and video cards carry a **"say this to a friend"** line: tap it to copy it (+5 XP).
 
@@ -21,6 +21,14 @@ RSS + Google News ──► dedupe, last 13h ──► Gemini picks the top 6 pe
                                                       │
         GitHub Actions every 4 hours ──► docs/data.js ──► GitHub Pages site
 ```
+
+## Stories you've already seen
+
+A story counts as seen once per visit (30+ minutes apart, so reloading doesn't count twice). After it has been seen on **2 visits** it stops appearing in the feed. Saved stories always stay in **Saved**. Tap **Hidden** to see how many are being held back and bring them all back.
+
+## Tech findings
+
+The Tech channel pulls brand-new GitHub repos that are gaining stars fast (topics: llm, ai-agents, mcp, claude-code, vibe-coding, developer-tools) and recent Show HN projects, mixes them with developer and AI news, and Gemini picks about half findings. Edit the `finds:` block of Tech in `config.yaml` to change topics, how recent, or the minimum stars. On GitHub Actions the search uses the built-in token automatically. On your PC it works without one but is slower; add `GITHUB_TOKEN=` (a personal access token with no scopes) to `.env` to speed it up.
 
 ## The Trending tab
 

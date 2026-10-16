@@ -344,7 +344,12 @@ def collect_youtube(tcfg: dict) -> list[Cand]:
             try:
                 items = http_json(url, nb.USER_AGENT).get("items", [])
             except urllib.error.HTTPError as exc:
-                why = "key rejected - enable 'YouTube Data API v3' for it" if exc.code in (400, 403) else f"HTTP {exc.code}"
+                try:
+                    reason = json.load(exc).get("error", {}).get("message", "")[:90]
+                except Exception:
+                    reason = ""
+                why = (f"HTTP {exc.code}: {reason}" if reason else f"HTTP {exc.code}") + \
+                      " | needs its own key with YouTube Data API v3 enabled (see README)"
                 note(f"YouTube trending {region}", 0, why)
                 continue
             except Exception as exc:

@@ -23,12 +23,31 @@ categories:
     emoji: "💻"
     color: "#2D5BFF"
     ink: light
-    focus: Major product launches, big-company moves, security incidents, developer tooling and open source news.
+    reel_top_n: 8              # this channel gets more cards than the others
+    focus: >-
+      For a working software developer who follows AI closely. Favour: new open-source repos and tools worth trying,
+      AI coding agents and vibe coding (Claude Code, Cursor, Copilot, MCP servers, agent skills), framework and language
+      releases, developer tooling, practical engineering write-ups and security incidents that affect developers.
+      Skip general gadget and consumer-tech news.
+    finds:                     # "findings": things to try, not just news
+      github_topics: [llm, ai-agents, mcp, claude-code, vibe-coding, developer-tools]
+      github_days: 7           # only repos created in the last N days
+      github_min_stars: 100    # that already have this many stars
+      show_hn: true            # Show HN projects from the last 2 days
+      show_hn_min_points: 40
+      max: 20
     feeds:
-      - https://www.theverge.com/rss/index.xml
+      - https://simonwillison.net/atom/everything/
+      - https://github.blog/feed/
+      - https://huggingface.co/blog/feed.xml
+      - https://www.latent.space/feed
+      - https://lobste.rs/rss
       - https://feeds.arstechnica.com/arstechnica/index
-      - https://techcrunch.com/feed/
       - https://hnrss.org/frontpage?points=200
+    queries:
+      - "vibe coding"
+      - "AI coding agent OR \"Claude Code\" OR Cursor OR Copilot"
+      - "open source developer tool release"
 
   - name: AI & Cloud
     emoji: "🤖"
